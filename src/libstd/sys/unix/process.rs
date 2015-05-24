@@ -17,6 +17,7 @@ use ffi::{OsString, OsStr, CString, CStr};
 use fmt;
 use io::{self, Error, ErrorKind};
 use libc::{self, pid_t, c_void, c_int, gid_t, uid_t};
+use mem;
 use ptr;
 use sys::pipe::AnonPipe;
 use sys::{self, c, cvt, cvt_r};
@@ -311,6 +312,18 @@ impl Process {
         if !envp.is_null() {
             *sys::os::environ() = envp as *const _;
         }
+
+        // Reset signal handling so the child process starts in a
+        // standardized state. We ignore SIGPIPE, and signal-handling
+        // libraries often set a mask; both of these get inherited,
+        // which most UNIX programs don't expect.
+        let mut set: c::sigset_t = mem::uninitialized();
+        if c::sigemptyset(&mut set) != 0 ||
+           c::pthread_sigmask(c::SIG_SETMASK, &set, ptr::null_mut()) != 0 ||
+           c::signal(libc::SIGPIPE, c::SIG_DFL) == c::SIG_ERR {
+            fail(&mut output);
+        }
+
         let _ = libc::execvp(*argv, argv as *mut _);
         fail(&mut output)
     }
