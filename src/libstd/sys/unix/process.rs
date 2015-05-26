@@ -314,9 +314,12 @@ impl Process {
         }
 
         // Reset signal handling so the child process starts in a
-        // standardized state. We ignore SIGPIPE, and signal-handling
-        // libraries often set a mask; both of these get inherited,
-        // which most UNIX programs don't expect.
+        // standardized state. libstd ignores SIGPIPE, and signal-handling
+        // libraries often set a mask. Child processes inherit ignored
+        // signals and the signal mask from their parent, but most
+        // UNIX programs do not reset these things on their own, so we
+        // need to clean things up now to avoid confusing the program
+        // we're about to run.
         let mut set: c::sigset_t = mem::uninitialized();
         if c::sigemptyset(&mut set) != 0 ||
            c::pthread_sigmask(c::SIG_SETMASK, &set, ptr::null_mut()) != 0 ||
