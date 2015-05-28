@@ -393,8 +393,8 @@ mod tests {
 
         let mut buf = [0; 10];
         let wait = Duration::span(|| {
-            assert_eq!(ErrorKind::WouldBlock,
-                       stream.recv_from(&mut buf).err().expect("expected error").kind());
+            let kind = stream.read(&mut buf).err().expect("expected error").kind();
+            assert!(kind == ErrorKind::WouldBlock || kind == ErrorKind::TimedOut);
         });
         assert!(wait > Duration::from_millis(5));
         assert!(wait < Duration::from_millis(15));
@@ -414,8 +414,8 @@ mod tests {
         assert_eq!(b"hello world", &buf[..]);
 
         let wait = Duration::span(|| {
-            assert_eq!(ErrorKind::WouldBlock,
-                       stream.recv_from(&mut buf).err().expect("expected error").kind());
+            let kind = stream.read(&mut buf).err().expect("expected error").kind();
+            assert!(kind == ErrorKind::WouldBlock || kind == ErrorKind::TimedOut);
         });
         assert!(wait > Duration::from_millis(5));
         assert!(wait < Duration::from_millis(15));
