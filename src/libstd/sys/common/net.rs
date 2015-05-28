@@ -26,7 +26,7 @@ use time::Duration;
 // sockaddr and misc bindings
 ////////////////////////////////////////////////////////////////////////////////
 
-fn setsockopt<T>(sock: &Socket, opt: c_int, val: c_int,
+pub fn setsockopt<T>(sock: &Socket, opt: c_int, val: c_int,
                      payload: T) -> io::Result<()> {
     unsafe {
         let payload = &payload as *const T as *const c_void;
@@ -36,7 +36,7 @@ fn setsockopt<T>(sock: &Socket, opt: c_int, val: c_int,
     }
 }
 
-fn getsockopt<T: Copy>(sock: &Socket, opt: c_int,
+pub fn getsockopt<T: Copy>(sock: &Socket, opt: c_int,
                        val: c_int) -> io::Result<T> {
     unsafe {
         let mut slot: T = mem::zeroed();
@@ -164,92 +164,6 @@ pub fn lookup_addr(addr: &IpAddr) -> io::Result<String> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// Timeouts
-////////////////////////////////////////////////////////////////////////////////
-
-#[cfg(target_os = "windows")]
-fn set_timeout(socket: &Socket, dur: Option<Duration>, kind: libc::c_int) -> io::Result<()> {
-    let timeout = match dur {
-        Some(dur) => {
-            if dur.secs() == 0 && dur.extra_nanos() == 0 {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                          "cannot set a 0 duration timeout"));
-            }
-
-            let mut timeout = if dur.secs() > (libc::DWORD::max_value() / 1000) as u64 {
-                libc::DWORD::max_value()
-            } else {
-                (dur.secs() * 1000) as libc::DWORD
-            };
-            timeout = timeout.saturating_add((dur.extra_nanos() / 1000000) as libc::DWORD);
-            if timeout == 0 {
-                timeout = 1;
-            }
-            timeout
-        }
-        None => 0
-    };
-    setsockopt(socket, libc::SOL_SOCKET, kind, timeout)
-}
-
-#[cfg(not(target_os = "windows"))]
-fn set_timeout(socket: &Socket, dur: Option<Duration>, kind: libc::c_int) -> io::Result<()> {
-    let timeout = match dur {
-        Some(dur) => {
-            if dur.secs() == 0 && dur.extra_nanos() == 0 {
-                return Err(io::Error::new(io::ErrorKind::InvalidInput,
-                                          "cannot set a 0 duration timeout"));
-            }
-
-            let secs = if dur.secs() > libc::time_t::max_value() as u64 {
-                libc::time_t::max_value()
-            } else {
-                dur.secs() as libc::time_t
-            };
-            let mut timeout = libc::timeval {
-                tv_sec: secs,
-                tv_usec: (dur.extra_nanos() / 1000) as libc::time_t,
-            };
-            if timeout.tv_sec == 0 && timeout.tv_usec == 0 {
-                timeout.tv_usec = 1;
-            }
-            timeout
-        }
-        None => {
-            libc::timeval {
-                tv_sec: 0,
-                tv_usec: 0,
-            }
-        }
-    };
-    setsockopt(socket, libc::SOL_SOCKET, kind, timeout)
-}
-
-#[cfg(target_os = "windows")]
-fn timeout(socket: &Socket, kind: libc::c_int) -> io::Result<Option<Duration>> {
-    let raw: libc::DWORD = try!(getsockopt(socket, libc::SOL_SOCKET, kind));
-    if raw == 0 {
-        Ok(None)
-    } else {
-        let secs = raw / 1000;
-        let nsec = (raw % 1000) * 1000000;
-        Ok(Some(Duration::new(secs as u64, nsec as u32)))
-    }
-}
-
-#[cfg(not(target_os = "windows"))]
-fn timeout(socket: &Socket, kind: libc::c_int) -> io::Result<Option<Duration>> {
-    let raw: libc::timeval = try!(getsockopt(socket, libc::SOL_SOCKET, kind));
-    if raw.tv_sec == 0 && raw.tv_usec == 0 {
-        Ok(None)
-    } else {
-        let sec = raw.tv_sec as u64;
-        let nsec = (raw.tv_usec as u32) * 1000;
-        Ok(Some(Duration::new(sec, nsec)))
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
 // TCP streams
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -307,19 +221,19 @@ impl TcpStream {
     }
 
     pub fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        set_timeout(&self.inner, dur, libc::SO_RCVTIMEO)
+        self.inner.set_timeout(dur, libc::SO_RCVTIMEO)
     }
 
     pub fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        set_timeout(&self.inner, dur, libc::SO_SNDTIMEO)
+        self.inner.set_timeout(dur, libc::SO_SNDTIMEO)
     }
 
     pub fn read_timeout(&self) -> io::Result<Option<Duration>> {
-        timeout(&self.inner, libc::SO_RCVTIMEO)
+        self.inner.timeout(libc::SO_RCVTIMEO)
     }
 
     pub fn write_timeout(&self) -> io::Result<Option<Duration>> {
-        timeout(&self.inner, libc::SO_SNDTIMEO)
+        self.inner.timeout(libc::SO_SNDTIMEO)
     }
 
     pub fn read(&self, buf: &mut [u8]) -> io::Result<usize> {
@@ -575,19 +489,19 @@ impl UdpSocket {
     }
 
     pub fn set_read_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        set_timeout(&self.inner, dur, libc::SO_RCVTIMEO)
+        self.inner.set_timeout(dur, libc::SO_RCVTIMEO)
     }
 
     pub fn set_write_timeout(&self, dur: Option<Duration>) -> io::Result<()> {
-        set_timeout(&self.inner, dur, libc::SO_SNDTIMEO)
+        self.inner.set_timeout(dur, libc::SO_SNDTIMEO)
     }
 
     pub fn read_timeout(&self) -> io::Result<Option<Duration>> {
-        timeout(&self.inner, libc::SO_RCVTIMEO)
+        self.inner.timeout(libc::SO_RCVTIMEO)
     }
 
     pub fn write_timeout(&self) -> io::Result<Option<Duration>> {
-        timeout(&self.inner, libc::SO_SNDTIMEO)
+        self.inner.timeout(libc::SO_SNDTIMEO)
     }
 }
 

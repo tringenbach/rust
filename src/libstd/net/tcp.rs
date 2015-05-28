@@ -918,4 +918,44 @@ mod tests {
         t!(stream.set_write_timeout(None));
         assert_eq!(None, t!(stream.write_timeout()));
     }
+
+    #[test]
+    fn test_read_timeout() {
+        let addr = next_test_ip4();
+        let listener = t!(TcpListener::bind(&addr));
+
+        let mut stream = t!(TcpStream::connect(&("localhost", addr.port())));
+        t!(stream.set_read_timeout(Some(Duration::from_millis(10))));
+
+        let mut buf = [0; 10];
+        let wait = Duration::span(|| {
+            assert_eq!(ErrorKind::WouldBlock,
+                       stream.read(&mut buf).err().expect("expected error").kind());
+        });
+        assert!(wait > Duration::from_millis(5));
+        assert!(wait < Duration::from_millis(15));
+    }
+
+    #[test]
+    fn test_read_with_timeout() {
+        let addr = next_test_ip4();
+        let listener = t!(TcpListener::bind(&addr));
+
+        let mut stream = t!(TcpStream::connect(&("localhost", addr.port())));
+        t!(stream.set_read_timeout(Some(Duration::from_millis(10))));
+
+        let mut other_end = t!(listener.accept()).0;
+        t!(other_end.write_all(b"hello world"));
+
+        let mut buf = [0; 11];
+        t!(stream.read(&mut buf));
+        assert_eq!(b"hello world", &buf[..]);
+
+        let wait = Duration::span(|| {
+            assert_eq!(ErrorKind::WouldBlock,
+                       stream.read(&mut buf).err().expect("expected error").kind());
+        });
+        assert!(wait > Duration::from_millis(5));
+        assert!(wait < Duration::from_millis(15));
+    }
 }
