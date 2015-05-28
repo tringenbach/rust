@@ -432,3 +432,57 @@ fn translate_status(status: c_int) -> ExitStatus {
         ExitStatus::Signal(imp::WTERMSIG(status))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use prelude::v1::*;
+
+    use ffi::OsStr;
+    use mem;
+    use ptr;
+    use libc;
+    use sys::{self, c, cvt, pipe};
+
+    extern {
+        fn sigaddset(set: *mut c::sigset_t, signum: libc::c_int) -> libc::c_int;
+    }
+
+    #[test]
+    fn test_process_mask() {
+        unsafe {
+            // Test to make sure that a signal mask does not get inherited.
+            let cmd = Command::new(OsStr::new("cat"));
+            let (stdin_read, stdin_write) = sys::pipe::anon_pipe().unwrap();
+            let (stdout_read, stdout_write) = sys::pipe::anon_pipe().unwrap();
+
+            let mut set: c::sigset_t = mem::uninitialized();
+            let mut old_set: c::sigset_t = mem::uninitialized();
+            cvt(c::sigemptyset(&mut set)).unwrap();
+            cvt(sigaddset(&mut set, libc::SIGINT)).unwrap();
+            cvt(c::pthread_sigmask(c::SIG_SETMASK, &set, &mut old_set)).unwrap();
+
+            let cat = Process::spawn(&cmd, Stdio::Piped(stdin_read),
+                                           Stdio::Piped(stdout_write),
+                                           Stdio::None).unwrap();
+
+            cvt(c::pthread_sigmask(c::SIG_SETMASK, &old_set, ptr::null_mut())).unwrap();
+
+            cvt(libc::funcs::posix88::signal::kill(cat.id() as libc::pid_t, libc::SIGINT)).unwrap();
+            // We need to wait until SIGINT is definitely delivered. The
+            // easiest way is to write something to cat, and try to read it
+            // back: if SIGINT is unmasked, it'll get delivered when cat is
+            // next scheduled.
+            let _ = stdin_write.write(b"Hello");
+            drop(stdin_write);
+
+            // Either EOF or failure (EPIPE) is okay.
+            let mut buf = [0; 5];
+            if let Ok(ret) = stdout_read.read(&mut buf) {
+                assert!(ret == 0);
+            }
+
+            cat.wait().unwrap();
+        }
+    }
+}
