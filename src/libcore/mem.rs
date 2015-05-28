@@ -57,7 +57,7 @@ pub use intrinsics::transmute;
 /// There's only a few reasons to use this function. The mainly come
 /// up in unsafe code or FFI code.
 ///
-/// * You have an uninitialed value, perhaps for performance reasons, and
+/// * You have an uninitialized value, perhaps for performance reasons, and
 ///   need to prevent the destructor from running on it
 /// * You have two copies of a value (like std::mem::swap), but need the
 ///   destructor to only run once to prevent a double free
