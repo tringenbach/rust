@@ -52,6 +52,17 @@ pub use intrinsics::transmute;
 /// * `mpsc::{Sender, Receiver}` cycles (they use `Arc` internally)
 /// * Panicking destructors are likely to leak local resources
 ///
+/// # When To Use
+///
+/// There's only a few reasons to use this function. The mainly come
+/// up in unsafe code or FFI code.
+///
+/// * You have an uninitialed value, perhaps for performance reasons, and
+///   need to prevent the destructor from running on it
+/// * You have two copies of a value (like std::mem::swap), but need the
+///   destructor to only run once to prevent a double free
+/// * Transferring resources across FFI boundries
+///
 /// # Example
 ///
 /// ```rust,no_run
@@ -65,6 +76,23 @@ pub use intrinsics::transmute;
 /// // Leak an I/O object, never closing the file
 /// let file = File::open("foo.txt").unwrap();
 /// mem::forget(file);
+///
+/// // The swap function uses forget
+/// fn swap<T>(x: &mut T, y: &mut T) {
+///     unsafe {
+///         // Give ourselves some scratch space to work with
+///         let mut t: T = uninitialized();
+///
+///         // Perform the swap, `&mut` pointers never alias
+///         ptr::copy_nonoverlapping(&*x, &mut t, 1);
+///         ptr::copy_nonoverlapping(&*y, x, 1);
+///         ptr::copy_nonoverlapping(&t, y, 1);
+///
+///         // y and t now point to the same thing, but we need to completely forget `t`
+///         // because it's no longer relevant.
+///         forget(t);
+///     }
+/// }
 /// ```
 #[stable(feature = "rust1", since = "1.0.0")]
 pub fn forget<T>(t: T) {
