@@ -88,8 +88,9 @@ pub use intrinsics::transmute;
 ///         ptr::copy_nonoverlapping(&*y, x, 1);
 ///         ptr::copy_nonoverlapping(&t, y, 1);
 ///
-///         // y and t now point to the same thing, but we need to completely forget `t`
-///         // because it's no longer relevant.
+///         // y and t now point to the same thing, but we need to completely
+///         // forget `t` because we do not want to run the destructor for `T`
+///         // on its value, which is still owned somewhere outside this function.
 ///         forget(t);
 ///     }
 /// }
@@ -295,8 +296,9 @@ pub fn swap<T>(x: &mut T, y: &mut T) {
         ptr::copy_nonoverlapping(&*y, x, 1);
         ptr::copy_nonoverlapping(&t, y, 1);
 
-        // y and t now point to the same thing, but we need to completely forget `t`
-        // because it's no longer relevant.
+        // y and t now point to the same thing, but we need to completely
+        // forget `t` because we do not want to run the destructor for `T`
+        // on its value, which is still owned somewhere outside this function.
         forget(t);
     }
 }
