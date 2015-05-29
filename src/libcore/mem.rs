@@ -65,23 +65,32 @@ pub use intrinsics::transmute;
 ///
 /// # Example
 ///
-/// ```rust,no_run
+/// ```rust
 /// use std::mem;
-/// use std::fs::File;
 ///
 /// // Leak some heap memory by never deallocating it
 /// let heap_memory = Box::new(3);
 /// mem::forget(heap_memory);
+///```
+///
+/// ```rust,no_run
+/// use std::mem;
+/// use std::fs::File;
 ///
 /// // Leak an I/O object, never closing the file
 /// let file = File::open("foo.txt").unwrap();
 /// mem::forget(file);
+///```
+///
+///```rust
+/// use std::mem;
+/// use std::ptr;
 ///
 /// // The swap function uses forget
-/// fn swap<T>(x: &mut T, y: &mut T) {
+/// pub fn swap<T>(x: &mut T, y: &mut T) {
 ///     unsafe {
 ///         // Give ourselves some scratch space to work with
-///         let mut t: T = uninitialized();
+///         let mut t: T = mem::uninitialized();
 ///
 ///         // Perform the swap, `&mut` pointers never alias
 ///         ptr::copy_nonoverlapping(&*x, &mut t, 1);
@@ -91,7 +100,7 @@ pub use intrinsics::transmute;
 ///         // y and t now point to the same thing, but we need to completely
 ///         // forget `t` because we do not want to run the destructor for `T`
 ///         // on its value, which is still owned somewhere outside this function.
-///         forget(t);
+///         mem::forget(t);
 ///     }
 /// }
 /// ```
