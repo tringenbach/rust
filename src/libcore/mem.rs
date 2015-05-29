@@ -65,28 +65,31 @@ pub use intrinsics::transmute;
 ///
 /// # Example
 ///
+/// Leak some heap memory by never deallocating it.
+///
 /// ```rust
 /// use std::mem;
 ///
-/// // Leak some heap memory by never deallocating it
 /// let heap_memory = Box::new(3);
 /// mem::forget(heap_memory);
-///```
+/// ```
+///
+/// Leak an I/O object, never closing the file.
 ///
 /// ```rust,no_run
 /// use std::mem;
 /// use std::fs::File;
 ///
-/// // Leak an I/O object, never closing the file
 /// let file = File::open("foo.txt").unwrap();
 /// mem::forget(file);
-///```
+/// ```
 ///
-///```rust
+/// The swap function uses forget to good effect.
+///
+/// ```rust
 /// use std::mem;
 /// use std::ptr;
 ///
-/// // The swap function uses forget
 /// pub fn swap<T>(x: &mut T, y: &mut T) {
 ///     unsafe {
 ///         // Give ourselves some scratch space to work with
